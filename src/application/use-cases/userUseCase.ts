@@ -7,6 +7,7 @@ import { IUserUseCase } from "../interface/IUserUseCase";
 import { NotFoundError } from "../../interfaces/errors/NotFoundError";
 import bcryptjs from "bcryptjs";
 import { BadRequestError } from "../../interfaces/errors/BadRequestError";
+import { UserBuilder } from "../builder/UserBuilder";
 
 export class UserUseCase implements IUserUseCase {
   constructor(private userRepository: IUserRepository) {}
@@ -14,13 +15,12 @@ export class UserUseCase implements IUserUseCase {
   async createUser(
     userData: Omit<User, "id" | "createdAt">
   ): Promise<Omit<UserDocument, "token"> & { token: string }> {
-    const user = new User(
-      new mongoose.Types.ObjectId(),
-      userData.username,
-      userData.email,
-      userData.password,
-      new Date()
-    );
+    const user = new UserBuilder()
+      .setUsername(userData.username)
+      .setEmail(userData.email)
+      .setPassword(userData.password)
+      .setCreatedAt(new Date())
+      .build();
 
     const savedUser = await this.userRepository.create(user);
     const userToken = await this.generateJwt(new mongoose.Types.ObjectId(savedUser._id),savedUser.email);
