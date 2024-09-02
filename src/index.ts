@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import { UserUseCase } from './application/use-cases/userUseCase';
 import { UserModel } from './infrastructure/databases/mongoose/model/UserModel';
 import { UserRepositoryFactory } from './application/factories/UserRepositoryFactory';
+import logger from './interfaces/logger/Logger';
 
 dotenv.config();
 
@@ -27,4 +28,7 @@ const startApplication = async () => {
   server.start();
 };
 
-startApplication().catch((error) => console.error('Error starting application:', error));
+startApplication().catch((error) => {
+  logger.error('Error starting application:', error)
+  process.exit(1);
+});

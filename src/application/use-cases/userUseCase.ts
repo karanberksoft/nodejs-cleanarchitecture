@@ -8,13 +8,20 @@ import { NotFoundError } from "../../interfaces/errors/NotFoundError";
 import bcryptjs from "bcryptjs";
 import { BadRequestError } from "../../interfaces/errors/BadRequestError";
 import { UserBuilder } from "../builder/UserBuilder";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "../../interfaces/utils/jwtUtils";
+import { UnAuthorizedError } from "../../interfaces/errors/UnAuthorizedError";
 
 export class UserUseCase implements IUserUseCase {
   constructor(private userRepository: IUserRepository) {}
 
-  async createUser(
-    userData: Omit<User, "id" | "createdAt">
-  ): Promise<Omit<UserDocument, "token"> & { token: string }> {
+  async createUser(userData: {
+    username: string;
+    email: string;
+    password: string;
+  }): Promise<{ accessToken: string; refreshToken: string }> {
     const user = new UserBuilder()
       .setUsername(userData.username)
       .setEmail(userData.email)
@@ -23,11 +30,16 @@ export class UserUseCase implements IUserUseCase {
       .build();
 
     const savedUser = await this.userRepository.create(user);
-    const userToken = await this.generateJwt(new mongoose.Types.ObjectId(savedUser._id),savedUser.email);
+    const accessToken = await generateAccessToken(
+      new mongoose.Types.ObjectId(savedUser._id)
+    );
+    const refreshToken = generateRefreshToken(
+      new mongoose.Types.ObjectId(savedUser._id)
+    );
 
-    const userWithoutSensitiveData = savedUser.toObject();
-
-    return { ...userWithoutSensitiveData, token: userToken };
+    savedUser.refreshToken = refreshToken;
+    await savedUser.save();
+    return { accessToken: accessToken, refreshToken: refreshToken };
   }
 
   async getUser(userId: string): Promise<User | null> {
@@ -37,7 +49,7 @@ export class UserUseCase implements IUserUseCase {
   async loginUser(
     email: string,
     password: string
-  ): Promise<Omit<UserDocument, "token"> & { token: string }> {
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const loginUser = await this.userRepository.findByEmail(email);
     if (loginUser == null) {
       throw new NotFoundError("user not found");
@@ -46,17 +58,42 @@ export class UserUseCase implements IUserUseCase {
     if (!isSamePassword) {
       throw new BadRequestError("Incorrect email or password");
     }
-    const userToken = await this.generateJwt(loginUser.id,loginUser.email);
-    return {...loginUser.toObject(),token:userToken};
+    const accessToken = await generateAccessToken(
+      new mongoose.Types.ObjectId(loginUser._id)
+    );
+    const refreshToken = generateRefreshToken(
+      new mongoose.Types.ObjectId(loginUser._id)
+    );
+
+    loginUser.refreshToken = refreshToken;
+    await loginUser.save();
+    return { accessToken: accessToken, refreshToken: refreshToken };
   }
 
+  async refreshAccessToken(
+    refreshToken: string
+  ): Promise<{ accessToken: string }> {
+    const user = await this.userRepository.findByRefreshToken(refreshToken);
+    if (!user) throw new UnAuthorizedError("Invalid refresh token");
+    const accessToken = generateAccessToken(
+      new mongoose.Types.ObjectId(user._id)
+    );
+    return { accessToken };
+  }
+  async logout(
+    refreshToken: string
+  ): Promise<Boolean> {
+    const user = await this.userRepository.findByRefreshToken(refreshToken);
+    if(!user) return false
+    user.refreshToken = '';
+    await user.save();
+    return true;
+  }
+  
   async comparePassword(
     password: string,
     hashPassword: string
   ): Promise<Boolean> {
     return bcryptjs.compare(password, hashPassword);
-  }
-  async generateJwt(id: mongoose.Types.ObjectId, email: string):Promise<string> {
-    return jwt.sign({ id: id, email: email }, process.env.JWT_SECRET as string);
   }
 }

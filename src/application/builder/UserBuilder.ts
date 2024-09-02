@@ -7,6 +7,7 @@ export class UserBuilder {
   private username: string = '';
   private email: string = '';
   private password: string = '';
+  private refreshToken: string = '';
   private createdAt: Date = new Date();
 
   public setId(id: mongoose.Types.ObjectId): this {
@@ -29,12 +30,17 @@ export class UserBuilder {
     return this;
   }
 
+  public setRefreshToken(refreshToken: string): this {
+    this.refreshToken = refreshToken;
+    return this;
+  }
+
   public setCreatedAt(createdAt: Date): this {
     this.createdAt = createdAt;
     return this;
   }
 
   public build(): User {
-    return new User(this.id, this.username, this.email, this.password, this.createdAt);
+    return new User(this.id, this.username, this.email, this.password,this.refreshToken, this.createdAt);
   }
 }

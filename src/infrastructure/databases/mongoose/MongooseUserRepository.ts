@@ -24,6 +24,7 @@ export class MongooseUserRepository implements IUserRepository {
       userModel.username,
       userModel.email,
       userModel.password,
+      userModel.refreshToken,
       userModel.createdAt,
     );
   }
@@ -40,7 +41,14 @@ export class MongooseUserRepository implements IUserRepository {
       user.username,
       user.email,
       user.password,
+      user.refreshToken,
       user.createdAt,
     ));
+  }
+
+  async findByRefreshToken(refreshToken: string): Promise<UserDocument | null>{
+    const userModel = await this.userModel.findOne({refreshToken:refreshToken});
+    if (!userModel) return null;
+    return userModel
   }
 }

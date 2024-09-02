@@ -13,75 +13,107 @@ export class UserController {
     req: Request,
     res: Response,
     next: NextFunction
-  ): Promise<void> {
+  ): Promise<Response<any, Record<string, any>>> {
     const { username, email, password } = req.body;
 
-    const savedUser = await this.userUseCase.createUser({
+    const { accessToken, refreshToken } = await this.userUseCase.createUser({
       username,
       email,
       password,
     });
-
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
     //this.server.emitEvent("userCreated", { username, email });
 
-    res
-      .status(201)
-      .send({
-        email: savedUser.email,
-        username: savedUser.username,
-        id: savedUser._id,
-        token: savedUser.token,
-      });
+    return res.status(201).send({
+      accessToken,
+      refreshToken,
+    });
   }
 
-  async login(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async login(req: Request, res: Response, next: NextFunction): Promise<Response<any, Record<string, any>>> {
     const { email, password } = req.body;
 
-    const loginUser = await this.userUseCase.loginUser(email, password);
+    const { accessToken, refreshToken } = await this.userUseCase.loginUser(
+      email,
+      password
+    );
 
-    res
-      .status(201)
-      .send({
-        id: loginUser._id,
-        email: loginUser.email,
-        username: loginUser.username,
-        token: loginUser.token,
-      });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    return res.status(200).send({
+      accessToken,
+      refreshToken,
+    });
+  }
+
+  async refreshAccessToken(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<Response<any, Record<string, any>>> {
+    const { refreshToken } = req.body;
+    const { accessToken } = await this.userUseCase.refreshAccessToken(
+      refreshToken
+    );
+
+    return res.status(200).json({ accessToken });
+  }
+
+  async logout(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<Response<any, Record<string, any>>> {
+    const { refreshToken } = req.cookies || null;
+    
+    if (!refreshToken) {
+      res.clearCookie("refreshToken");
+      return res.status(200).json({ message: "logout successfully" });
+    }
+  
+    const result = await this.userUseCase.logout(refreshToken);
+  
+    if (result) {
+      res.clearCookie("refreshToken");
+      return res.status(200).json({ message: "logout successfully" });
+    } else {
+      return res.status(200).json({ message: "logout successfully" });
+    }
   }
 
   async getUser(
     req: Request,
     res: Response,
     next: NextFunction
-  ): Promise<void> {
+  ): Promise<Response<any, Record<string, any>>> {
     const user = await this.userUseCase.getUser(req.params.id);
 
     if (!user) {
       throw new NotFoundError("User not found");
     }
 
-    res.status(200).json(user);
+    return res.status(200).json(user);
   }
 
   async currentUser(
     req: ExpressRequestInterface,
     res: Response,
     next: NextFunction
-  ): Promise<void> {
+  ): Promise<Response<any, Record<string, any>>> {
     if (!req.user) {
       throw new UnAuthorizedError("Unauthorized Access");
     }
-    const token = await this.userUseCase.generateJwt(
-      req.user._id,
-      req.user.email
-    );
-    res
-      .status(200)
-      .json({
-        id: req.user._id,
-        email: req.user.email,
-        username: req.user.email,
-        token: token,
-      });
+    return res.status(200).json({
+      id: req.user._id,
+      email: req.user.email,
+      username: req.user.email,
+    });
   }
 }

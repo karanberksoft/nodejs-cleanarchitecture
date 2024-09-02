@@ -5,6 +5,7 @@ import { UserRoutes } from '../../interfaces/routes/UserRoutes';
 import { SocketHandler } from '../../interfaces/sockets/SocketHandler';
 import { errorHandlerMiddleware } from '../../interfaces/middlewares/ErrorHandlerMiddleware';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 
 export class Server {
   private app: Application;
@@ -29,6 +30,7 @@ export class Server {
   }
 
   private configureMiddleware() {
+    this.app.use(cookieParser());
     this.app.use(cors());
     this.app.use(express.json());
     this.app.use(express.urlencoded({extended:true}));
